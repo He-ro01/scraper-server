@@ -40,10 +40,14 @@ app.get('/scrape', async (req, res) => {
     if (!postUrl) {
       // No "view post" link found — assume we're already on the post page
       console.log('⚠️ No "View Post" link found. Assuming current page is the post page.');
+      // Save the whole page HTML content to cache.html
+      const postHtml = await page.content();
+      fs.writeFileSync(path.join(__dirname, 'cache.html'), postHtml);
+      console.log('💾 Saved post page HTML to cache.html');
 
       // Extract the video URL directly from the current page
       const htmlContent = await page.content();
-      const match = htmlContent.match(/https:\/\/preview\.he\.ro\/[^\s"']+\.mp4/);
+      const match = htmlContent.match(/https:\/\/preview\.redd\.it\/[^\s"']+\.mp4/);
 
       if (!match) {
         console.log('❌ No video link found on current page');
@@ -69,8 +73,12 @@ app.get('/scrape', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
       console.log('🕒 Post page loaded, simulating human pause...');
 
-      // Extract video URL from post page
+      // Save the whole page HTML content to cache.html
       const postHtml = await page.content();
+      fs.writeFileSync(path.join(__dirname, 'cache.html'), postHtml);
+      console.log('💾 Saved post page HTML to cache.html');
+
+      // Extract video URL from post page
       const match = postHtml.match(/https:\/\/preview\.redd\.it\/[^\s"']+\.mp4/);
 
       if (!match) {
