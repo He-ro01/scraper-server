@@ -45,6 +45,6 @@ app.get('/scrape', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(5000, '0.0.0.0', () => {
+  console.log('Server listening on port 5000');
 });
