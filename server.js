@@ -25,10 +25,7 @@ app.get('/scrape', async (req, res) => {
     console.log(htmlContent);
 
     // Step 1: Find <a>View Post</a> link and get href
-    const postUrl = await page.evaluate(() => {
-      const link = Array.from(document.querySelectorAll('a')).find(a => a.textContent.trim() === 'View Post');
-      return link ? link.href : null;
-    });
+    const postUrl ="whe";
 
     if (!postUrl) throw new Error('View Post link not found');
 
