@@ -1,104 +1,68 @@
 const express = require('express');
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const fs = require('fs');
-const path = require('path');
+const { spawn } = require('child_process');
 
-puppeteer.use(StealthPlugin());
 const app = express();
 const PORT = 5000;
 
 app.get('/scrape', async (req, res) => {
-  const { url } = req.query;
-  if (!url) return res.status(400).send({ error: 'Missing URL' });
+  const { urls } = req.query;
+  if (!urls) return res.status(400).json({ error: 'Missing URLs' });
 
-  console.log('✅ Starting Puppeteer...');
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  const urlArray = Array.isArray(urls) ? urls : urls.split(',');
+
+  const scrapePromises = urlArray.map((url, index) => {
+    return new Promise((resolve) => {
+      const term = spawn('node', ['scrapeWorker.js', url], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      console.log(`🔄 Starting worker ${index + 1} for: ${url}`);
+
+      let jsonOutput = '';
+      let stderrData = '';
+
+      term.stdout.on('data', (data) => {
+        const lines = data.toString().split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          try {
+            const parsed = JSON.parse(trimmed);
+            jsonOutput = JSON.stringify(parsed); // Only capture valid JSON line
+          } catch {
+            console.log(`📝 Worker ${index + 1} log: ${trimmed}`);
+          }
+        }
+      });
+
+      term.stderr.on('data', (data) => {
+        stderrData += data.toString();
+      });
+
+      term.on('exit', (code) => {
+        if (code !== 0) {
+          console.error(`⚠️ Worker ${index + 1} exited with code ${code}`);
+          console.error(`❌ Worker ${index + 1} stderr:\n${stderrData}`);
+          resolve({ url, error: stderrData.trim() || `Worker exited with code ${code}` });
+          return;
+        }
+
+        console.log(`✅ Worker ${index + 1} completed.`);
+
+        try {
+          const result = JSON.parse(jsonOutput);
+          resolve({ url, ...result });
+        } catch (e) {
+          console.error(`❌ JSON parse error from worker ${index + 1}: ${e.message}`);
+          resolve({ url, videoUrl: "undefined" });
+        }
+      });
+    });
   });
 
-  try {
-    const page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36');
-
-    console.log(`🌐 Navigating to: ${url}`);
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
-
-    await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
-    console.log('🕒 Initial page loaded, simulating human pause...');
-
-    console.log('🔍 Searching for first matching <a> tag...');
-    const prefix = 'https://www.reddit.com/r';
-
-    let postUrl = await page.evaluate((prefix) => {
-      const links = Array.from(document.querySelectorAll('a'));
-      const found = links.find(link => link.href && link.href.startsWith(prefix));
-      return found ? found.href : null;
-    }, prefix);
-
-    if (!postUrl) {
-      // No "view post" link found — assume we're already on the post page
-      console.log('⚠️ No "View Post" link found. Assuming current page is the post page.');
-      // Save the whole page HTML content to cache.html
-      const postHtml = await page.content();
-      fs.writeFileSync(path.join(__dirname, 'cache.html'), postHtml);
-      console.log('💾 Saved post page HTML to cache.html');
-
-      // Extract the video URL directly from the current page
-      const htmlContent = await page.content();
-      const match = htmlContent.match(/https:\/\/preview\.redd\.it\/[^\s"']+\.mp4/);
-
-      if (!match) {
-        console.log('❌ No video link found on current page');
-        throw new Error('MP4 video link not found in page HTML');
-      }
-
-      const videoUrl = match[0];
-      console.log('🎉 Video URL extracted directly:', videoUrl);
-      res.json({ videoUrl });
-
-    } else {
-      console.log('✅ "View Post" URL found:', postUrl);
-
-      // Ensure postUrl is absolute
-      if (!postUrl.startsWith('http')) {
-        const base = new URL(url);
-        postUrl = new URL(postUrl, base.origin).href;
-        console.log('🧠 Converted to full URL:', postUrl);
-      }
-
-      console.log(`📦 Navigating to post page: ${postUrl}`);
-      await page.goto(postUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-      await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
-      console.log('🕒 Post page loaded, simulating human pause...');
-
-      // Save the whole page HTML content to cache.html
-      const postHtml = await page.content();
-      fs.writeFileSync(path.join(__dirname, 'cache.html'), postHtml);
-      console.log('💾 Saved post page HTML to cache.html');
-
-      // Extract video URL from post page
-      const match = postHtml.match(/https:\/\/preview\.redd\.it\/[^\s"']+\.mp4/);
-
-      if (!match) {
-        console.log('❌ No video link found on post page');
-        throw new Error('MP4 video link not found on post page');
-      }
-
-      const videoUrl = match[0];
-      console.log('🎉 Video URL extracted from post page:', videoUrl);
-      res.json({ videoUrl });
-    }
-
-  } catch (error) {
-    console.error('❌ Scraping error:', error);
-    res.status(500).send({ error: error.message });
-  } finally {
-    console.log('🧹 Closing browser...');
-    await browser.close();
-    console.log('✅ Done.');
-  }
+  const results = await Promise.all(scrapePromises);
+  res.json({ results });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
