@@ -64,7 +64,7 @@ app.get('/scrape', async (req, res) => {
 
     // Extract video URL from cached HTML content
     const rawHtml = fs.readFileSync(filePath, 'utf-8');
-    const match = rawHtml.match(/https:\/\/preview\.redd\.it\/[^\s"']+\.mp4/);
+    const match = rawHtml.match(/https:\/\/preview\.he\.ro\/[^\s"']+\.mp4/);
 
 
     if (!match || !match[1]) {
