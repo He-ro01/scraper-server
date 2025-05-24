@@ -15,9 +15,16 @@ app.get('/scrape', async (req, res) => {
 
   try {
     const page = await browser.newPage();
+
+    // Go to the initial URL
     await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-    // Step 1: Find <a>View Post</a>
+    // Print whole HTML of the initial page
+    const htmlContent = await page.content();
+    console.log('--- Initial Page HTML ---');
+    console.log(htmlContent);
+
+    // Step 1: Find <a>View Post</a> link and get href
     const postUrl = await page.evaluate(() => {
       const link = Array.from(document.querySelectorAll('a')).find(a => a.textContent.trim() === 'View Post');
       return link ? link.href : null;
@@ -25,8 +32,13 @@ app.get('/scrape', async (req, res) => {
 
     if (!postUrl) throw new Error('View Post link not found');
 
-    // Step 2: Go to that post page
+    // Go to the post page
     await page.goto(postUrl, { waitUntil: 'domcontentloaded' });
+
+    // Print whole HTML of the post page
+    const postHtml = await page.content();
+    console.log('--- Post Page HTML ---');
+    console.log(postHtml);
 
     // Step 3: Find <video> and get src
     const videoSrc = await page.evaluate(() => {
@@ -36,6 +48,7 @@ app.get('/scrape', async (req, res) => {
 
     if (!videoSrc) throw new Error('Video tag not found');
 
+    // Send video URL as JSON response
     res.json({ videoUrl: videoSrc });
 
   } catch (error) {
@@ -45,6 +58,6 @@ app.get('/scrape', async (req, res) => {
   }
 });
 
-app.listen(5000, '0.0.0.0', () => {
-  console.log('Server listening on port 5000');
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on port ${PORT}`);
 });
