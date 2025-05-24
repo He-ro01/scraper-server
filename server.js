@@ -1,15 +1,12 @@
 const express = require('express');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const fs = require('fs');
+const path = require('path');
 
 puppeteer.use(StealthPlugin());
 const app = express();
 const PORT = 5000;
-
-// Replace these with your proxiyum proxy info:
-const proxyServer = 'http://proxy-address:port'; // e.g. 'http://123.45.67.89:8080'
-const proxyUsername = 'your-username';          // if no auth, leave as ''
-const proxyPassword = 'your-password';          // if no auth, leave as ''
 
 app.get('/scrape', async (req, res) => {
   const { url } = req.query;
@@ -18,24 +15,11 @@ app.get('/scrape', async (req, res) => {
   console.log('✅ Starting Puppeteer...');
   const browser = await puppeteer.launch({
     headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      `--proxy-server=${proxyServer}`
-    ],
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
 
   try {
     const page = await browser.newPage();
-
-    if (proxyUsername && proxyPassword) {
-      await page.authenticate({
-        username: proxyUsername,
-        password: proxyPassword
-      });
-      console.log('🔐 Proxy authentication set');
-    }
-
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36');
 
     console.log(`🌐 Navigating to: ${url}`);
@@ -45,7 +29,7 @@ app.get('/scrape', async (req, res) => {
     console.log('🕒 Initial page loaded, simulating human pause...');
 
     console.log('🔍 Searching for first matching <a> tag...');
-    const prefix = 'https://www.heroscrape.com/r';
+    const prefix = 'https://www.reddit.com/r';
 
     let postUrl = await page.evaluate((prefix) => {
       const links = Array.from(document.querySelectorAll('a'));
@@ -54,8 +38,10 @@ app.get('/scrape', async (req, res) => {
     }, prefix);
 
     if (!postUrl) {
+      // No "view post" link found — assume we're already on the post page
       console.log('⚠️ No "View Post" link found. Assuming current page is the post page.');
 
+      // Extract the video URL directly from the current page
       const htmlContent = await page.content();
       const match = htmlContent.match(/https:\/\/preview\.he\.ro\/[^\s"']+\.mp4/);
 
@@ -71,6 +57,7 @@ app.get('/scrape', async (req, res) => {
     } else {
       console.log('✅ "View Post" URL found:', postUrl);
 
+      // Ensure postUrl is absolute
       if (!postUrl.startsWith('http')) {
         const base = new URL(url);
         postUrl = new URL(postUrl, base.origin).href;
@@ -82,6 +69,7 @@ app.get('/scrape', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
       console.log('🕒 Post page loaded, simulating human pause...');
 
+      // Extract video URL from post page
       const postHtml = await page.content();
       const match = postHtml.match(/https:\/\/preview\.redd\.it\/[^\s"']+\.mp4/);
 
