@@ -85,6 +85,7 @@ const [,, inputUrl] = process.argv;
       const match = html.match(/https:\/\/preview\.redd\.it\/[^\s"']+format=mp4[^\s"']*/g);
       if (!match) return undefined;
       const decoded = match[0].replace(/&amp;/g, '&');
+      console.log(decoded);
       return `https://www.reddit.com/media?url=${encodeURIComponent(decoded)}`;
     };
 
