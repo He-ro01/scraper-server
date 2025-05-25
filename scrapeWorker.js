@@ -14,7 +14,7 @@ const [,, inputUrl] = process.argv;
   console.log(`🔍 Starting scrape worker for URL: ${inputUrl}`);
 
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: true,
     defaultViewport: null,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
